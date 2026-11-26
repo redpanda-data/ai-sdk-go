@@ -294,9 +294,10 @@ runs:
         # Pin the approval to the exact SHA that was reviewed. The bot never
         # merges: the approval satisfies the ruleset's review requirement and
         # the author merges (or enables GitHub's own auto-merge) themselves.
-        gh api --method POST "repos/$REPO/pulls/$PR/reviews" \
-          -f event=APPROVE -f commit_id="$REVIEWED" -F body=@audit.md >/dev/null
+        RID="$(gh api --method POST "repos/$REPO/pulls/$PR/reviews" \
+          -f event=APPROVE -f commit_id="$REVIEWED" -F body=@audit.md --jq .node_id)"
         echo "posted=true" >> "$GITHUB_OUTPUT"
+        echo "review_id=$RID" >> "$GITHUB_OUTPUT"
 
     # Runs even when an earlier step failed (always()), and also when the
     # approve step decided yes but posted nothing (head moved): in every case
@@ -321,6 +322,41 @@ runs:
             gh api --method PUT "repos/$REPO/pulls/$PR/reviews/$RID/dismissals" \
               -f message="Withdrawn: this PR is no longer AI-approved (new commits, opt-out, or a failed run)." \
               -f event="DISMISS" >/dev/null || echo "::warning::could not dismiss review $RID"
+          done
+        true
+
+    # Each approval is a new review that carries the full audit body, and a review
+    # cannot move to a new commit. So the older bot reviews stay on the PR. Hide
+    # them as outdated: the sticky comment and the newest review hold the current
+    # state. Hiding does not change a review's state, so it does not withdraw an
+    # approval (the step above does that). Best-effort: a failure here only
+    # leaves old reviews visible.
+    - name: Hide older bot reviews as outdated
+      if: always() && inputs.dry_run != 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ inputs.repo }}
+        PR: ${{ inputs.pr_number }}
+        BOT: ${{ inputs.bot_login }}
+        KEEP: ${{ steps.approve.outputs.review_id }}
+      run: |
+        set -uo pipefail
+        # GraphQL gives the bot login without the "[bot]" suffix.
+        gh api graphql --paginate \
+          -f owner="${REPO%%/*}" -f name="${REPO#*/}" -F pr="$PR" \
+          -f query='query($owner: String!, $name: String!, $pr: Int!, $endCursor: String) {
+            repository(owner: $owner, name: $name) { pullRequest(number: $pr) {
+              reviews(first: 100, after: $endCursor) {
+                nodes { id isMinimized author { login } }
+                pageInfo { hasNextPage endCursor } } } } }' \
+          --jq ".data.repository.pullRequest.reviews.nodes[]
+                | select(.author.login == \"${BOT%\[bot\]}\" and (.isMinimized | not) and .id != \"$KEEP\")
+                | .id" \
+        | while read -r NID; do
+            gh api graphql -f id="$NID" \
+              -f query='mutation($id: ID!) { minimizeComment(input: {subjectId: $id, classifier: OUTDATED}) { clientMutationId } }' \
+              >/dev/null || echo "::warning::could not hide review $NID"
           done
         true
 

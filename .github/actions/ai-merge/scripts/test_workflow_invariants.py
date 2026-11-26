@@ -318,3 +318,21 @@ def test_mechanism_and_config_come_from_the_default_branch_tip():
             ), (jname, st["with"]["ref"])
     assert "base_sha: ${{ steps.present.outputs.mechanism_sha }}" in s
     assert "BASE_SHA: ${{ steps.present.outputs.mechanism_sha }}" in s
+
+
+def test_older_bot_reviews_are_hidden_as_outdated():
+    # Each approval is a new review that carries the full audit body, so the
+    # older ones must be minimized (OUTDATED) or the PR fills up with copies.
+    # The review this run posted must stay visible.
+    import yaml
+
+    action = os.path.join(HERE, "..", "action.yml")
+    steps = yaml.safe_load(open(action))["runs"]["steps"]
+    approve = next(st for st in steps if st.get("id") == "approve")
+    assert "review_id=" in approve["run"]
+    hide = [st for st in steps if "minimizeComment" in st.get("run", "")]
+    assert len(hide) == 1, "expected one step that minimizes older bot reviews"
+    st = hide[0]
+    assert "always()" in st["if"] and "dry_run" in st["if"]
+    assert "OUTDATED" in st["run"]
+    assert "steps.approve.outputs.review_id" in st["env"]["KEEP"]
